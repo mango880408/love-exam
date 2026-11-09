@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2026학년도 연애능력평가 - 여친/남친·썸남/썸녀 고사</title>
+  <!-- 한국 시험지 감성 명조체 / 고딕체 / 손글씨(채점용) 구글 폰트 로드 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- 실제 빨간 색연필(채점펜)의 거친 종이 입자 질감을 만드는 글로벌 SVG 필터 -->
+  <svg width="0" height="0" style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
+    <defs>
+      <filter id="red-pencil-texture" x="-20%" y="-20%" width="140%" height="140%" filterUnits="objectBoundingBox">
+        <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="7" result="wobbleNoise" />
+        <feDisplacementMap in="SourceGraphic" in2="wobbleNoise" scale="2.8" xChannelSelector="R" yChannelSelector="G" result="wobbledStroke" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" seed="19" result="grainNoise" />
+        <feColorMatrix type="matrix" values="
+          1 0 0 0 0
+          0 1 0 0 0
+          0 0 1 0 0
+          0 0 0 1.45 -0.18" in="grainNoise" result="grainMask" />
+        <feComposite in="wobbledStroke" in2="grainMask" operator="in" result="texturedPencil" />
+        <feDisplacementMap in="SourceGraphic" in2="grainNoise" scale="1.6" result="roughEdge" />
+        <feMerge>
+          <feMergeNode in="texturedPencil" />
+          <feMergeNode in="roughEdge" />
+        </feMerge>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- 모바일 환경용 상단 배너 광고 슬롯 -->
+  <div class="ad-mobile-banner" id="adMobileTopSlot"></div>
+
+  <!-- 메인 3단 구조: 좌측 광고 | 중앙 한국 시험지 | 우측 광고 -->
+  <main class="page-shell">
+
+    <!-- [좌측 광고 슬롯] -->
+    <aside class="ad-sidebar" aria-label="좌측 광고 영역" id="adLeftSidebar"></aside>
+
+    <!-- [중앙 메인 영역] 실제 한국 시험지(갱지) 컨테이너 -->
+    <section class="exam-paper-wrapper">
+      <div class="exam-paper">
+        <div class="exam-inner-frame" id="examAppRoot">
+          <!-- app.js가 이곳에 랜딩(표지) / 출제화면 / 응시화면 / 채점결과를 렌더링합니다 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- [우측 광고 슬롯] -->
+    <aside class="ad-sidebar" aria-label="우측 광고 영역" id="adRightSidebar"></aside>
+
+  </main>
+
+  <!-- 토스트 메시지 -->
+  <div id="toastMsg" class="toast-msg"></div>
+
+  <!-- 광고 수익화 설정 파일 (이 파일에 링크/ID만 입력하면 자동 반영됩니다) -->
+  <script src="ad-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
