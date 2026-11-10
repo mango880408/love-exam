@@ -1441,8 +1441,8 @@ function renderTakeOrResultView() {
                 ${qRec.icon} <strong>${escapeHtml(qRec.badge)}:</strong> ${escapeHtml(qRec.productTitle)}
               </span>
               <a href="${escapeHtml(qRec.url)}" target="_blank" rel="noopener sponsored"
-                 style="background:#d9251d; color:#fff; font-size:11px; font-weight:800; padding:3px 8px; border-radius:3px; text-decoration:none; white-space:nowrap;">
-                쿠팡에서 보기 →
+                 style="background:${escapeHtml(qRec.accentColor || '#d9251d')}; color:#fff; font-size:11px; font-weight:800; padding:3px 8px; border-radius:3px; text-decoration:none; white-space:nowrap;">
+                ${escapeHtml(qRec.ctaLabel || '상품 보기 →')}
               </a>
             </div>
           `
@@ -2058,9 +2058,83 @@ function recordGradingToTrendDB(questions, itemResults) {
 }
 
 // =========================================================
-// [기능 2] 출제자 정답 기반 다이내믹 아이템 추천 & 광고 로더 (ad-config.js 연동)
+// [기능 2] 통합 수익화 엔진 (쿠팡 파트너스 + 1020 무신사·지그재그·에이블리·올리브영·29CM + 구글 애드센스 + 카카오 애드핏)
 // =========================================================
 let adSenseScriptLoaded = false;
+let kakaoAdFitScriptLoaded = false;
+
+const PARTNER_PLATFORM_META = {
+  coupang: {
+    key: 'coupang',
+    name: '쿠팡',
+    brandBadge: 'COUPANG',
+    ctaLabel: '쿠팡에서 보기 →',
+    buyBtnText: '쿠팡에서 구매하기',
+    accentColor: '#346aff',
+    badgeBg: '#ebf5ff',
+    badgeColor: '#0073e9',
+    defaultDeliveryBadge: '🚀 로켓배송'
+  },
+  musinsa: {
+    key: 'musinsa',
+    name: '무신사',
+    brandBadge: 'MUSINSA',
+    ctaLabel: '무신사에서 보기 →',
+    buyBtnText: '무신사 스토어 보기',
+    accentColor: '#111111',
+    badgeBg: '#111111',
+    badgeColor: '#ffffff',
+    defaultDeliveryBadge: 'MUSINSA 무료배송'
+  },
+  zigzag: {
+    key: 'zigzag',
+    name: '지그재그',
+    brandBadge: 'ZIGZAG',
+    ctaLabel: '지그재그에서 보기 →',
+    buyBtnText: '지그재그 직진배송 보기',
+    accentColor: '#ff2f92',
+    badgeBg: '#fff0f7',
+    badgeColor: '#e0167b',
+    defaultDeliveryBadge: '⚡ 직진배송'
+  },
+  ably: {
+    key: 'ably',
+    name: '에이블리',
+    brandBadge: 'ABLY',
+    ctaLabel: '에이블리에서 보기 →',
+    buyBtnText: '에이블리 샥출발 보기',
+    accentColor: '#ff5160',
+    badgeBg: '#fff1f2',
+    badgeColor: '#e11d48',
+    defaultDeliveryBadge: '⚡ 샥출발 무료배송'
+  },
+  oliveyoung: {
+    key: 'oliveyoung',
+    name: '올리브영',
+    brandBadge: 'OLIVE YOUNG',
+    ctaLabel: '올리브영에서 보기 →',
+    buyBtnText: '올리브영 오늘드림 보기',
+    accentColor: '#5a9e14',
+    badgeBg: '#f1fce8',
+    badgeColor: '#3f7606',
+    defaultDeliveryBadge: '🛵 오늘드림'
+  },
+  '29cm': {
+    key: '29cm',
+    name: '29CM',
+    brandBadge: '29CM',
+    ctaLabel: '29CM에서 보기 →',
+    buyBtnText: '29CM 선물하기 보기',
+    accentColor: '#1e293b',
+    badgeBg: '#f1f5f9',
+    badgeColor: '#0f172a',
+    defaultDeliveryBadge: '🎁 29CM 선물포장'
+  }
+};
+
+function getPlatformMeta(platformKey) {
+  return PARTNER_PLATFORM_META[platformKey] || PARTNER_PLATFORM_META.coupang;
+}
 
 function ensureGoogleAdSenseScript(clientId) {
   if (adSenseScriptLoaded || !clientId) return;
@@ -2072,6 +2146,15 @@ function ensureGoogleAdSenseScript(clientId) {
   document.head.appendChild(s);
 }
 
+function ensureKakaoAdFitScript() {
+  if (kakaoAdFitScriptLoaded) return;
+  kakaoAdFitScriptLoaded = true;
+  const s = document.createElement('script');
+  s.src = 'https://t1.daumcdn.net/kas/static/ba.min.js';
+  s.async = true;
+  document.head.appendChild(s);
+}
+
 // 쿠팡 파트너스 트래킹 코드(AF...) 또는 단축 URL을 결합해 실제 쿠팡 이동 링크 생성
 function buildCoupangAffiliateUrl(directUrl, searchQuery) {
   if (directUrl && directUrl.trim()) {
@@ -2079,7 +2162,7 @@ function buildCoupangAffiliateUrl(directUrl, searchQuery) {
   }
   const cfg = window.LOVE_EXAM_AD_CONFIG || {};
   const bw = cfg.coupangBannerWidget || {};
-  const trackingCode = (bw.trackingCode || cfg.coupangTrackingCode || '').trim();
+  const trackingCode = (bw.trackingCode || cfg.coupangTrackingCode || 'AF3621090').trim();
   const subId = (bw.subId || cfg.coupangSubId || 'love_exam').trim();
   const q = (searchQuery || '커플 인기 선물').trim();
   let url = `https://www.coupang.com/np/search?q=${encodeURIComponent(q)}`;
@@ -2089,10 +2172,96 @@ function buildCoupangAffiliateUrl(directUrl, searchQuery) {
   return url;
 }
 
-// 단일 문항의 '출제자 정답(객관식 정답 선지 또는 주관식 정답 단어)'을 분석해 이미지 포함 맞춤 추천 상품 생성
-function getRecommendationForSingleQuestion(q, qIdx, isWrongAnswer) {
+// 멀티 플랫폼(쿠팡 / 무신사 / 지그재그 / 에이블리 / 올리브영 / 29CM) 제휴 링크 빌더
+function buildPartnerAffiliateUrl(platformKey, directUrl, searchQuery) {
+  if (directUrl && directUrl.trim()) {
+    return directUrl.trim();
+  }
+  const pKey = (platformKey || 'coupang').toLowerCase();
+  if (pKey === 'coupang') {
+    return buildCoupangAffiliateUrl(directUrl, searchQuery);
+  }
+
   const cfg = window.LOVE_EXAM_AD_CONFIG || {};
-  const catalog = cfg.answerKeywordCatalog || [];
+  const fb = cfg.fashionBeautyPartners || {};
+  const q = encodeURIComponent((searchQuery || '커플 선물').trim());
+
+  if (pKey === 'musinsa') {
+    const m = fb.musinsa || {};
+    const base = m.defaultSearchBase || 'https://www.musinsa.com/search/goods?keyword=';
+    const code = (m.curatorId || '').trim();
+    return `${base}${q}${code ? `&utm_source=musinsa_curator&curator=${encodeURIComponent(code)}` : ''}`;
+  }
+  if (pKey === 'zigzag') {
+    const z = fb.zigzag || {};
+    const base = z.defaultSearchBase || 'https://zigzag.kr/search?keyword=';
+    const code = (z.affiliateCode || '').trim();
+    return `${base}${q}${code ? `&utm_source=affiliate&aff_id=${encodeURIComponent(code)}` : ''}`;
+  }
+  if (pKey === 'ably') {
+    const a = fb.ably || {};
+    const base = a.defaultSearchBase || 'https://m.a-bly.com/search?keyword=';
+    const code = (a.affiliateCode || '').trim();
+    return `${base}${q}${code ? `&utm_source=partner&ref=${encodeURIComponent(code)}` : ''}`;
+  }
+  if (pKey === 'oliveyoung') {
+    const o = fb.oliveyoung || {};
+    const base = o.defaultSearchBase || 'https://www.oliveyoung.co.kr/store/search/getSearchMain.do?query=';
+    const code = (o.affiliateCode || '').trim();
+    return `${base}${q}${code ? `&utm_source=affiliate&curator=${encodeURIComponent(code)}` : ''}`;
+  }
+  if (pKey === '29cm' || pKey === 'cm29') {
+    const c = fb.cm29 || {};
+    const base = c.defaultSearchBase || 'https://shop.29cm.co.kr/search?keyword=';
+    const code = (c.affiliateCode || '').trim();
+    return `${base}${q}${code ? `&utm_source=partner&aff=${encodeURIComponent(code)}` : ''}`;
+  }
+
+  return buildCoupangAffiliateUrl(directUrl, searchQuery);
+}
+
+function enrichCatalogRuleToRec(rule, qIdx, isWrongAnswer, answerLabelOverride, queryOverride) {
+  const platformKey = rule.platform || 'coupang';
+  const meta = getPlatformMeta(platformKey);
+  const finalQuery = queryOverride || rule.searchQuery || '커플 인기 선물';
+  const deliveryBadge =
+    rule.deliveryBadge || (rule.isRocket !== false && platformKey === 'coupang' ? '🚀 로켓배송' : meta.defaultDeliveryBadge);
+
+  return {
+    qNumber: qIdx + 1,
+    platform: platformKey,
+    platformName: meta.name,
+    brandBadge: meta.brandBadge,
+    ctaLabel: meta.ctaLabel,
+    buyBtnText: meta.buyBtnText,
+    accentColor: meta.accentColor,
+    badgeBg: meta.badgeBg,
+    badgeColor: meta.badgeColor,
+    deliveryBadge,
+    isWrongAnswer: Boolean(isWrongAnswer),
+    answerLabel: answerLabelOverride || rule.badge,
+    icon: rule.category === 'spicy' ? '🥂' : '🎁',
+    badge: isWrongAnswer ? `${qIdx + 1}번 오답 만회템` : `${qIdx + 1}번 정답 취향템`,
+    originalBadge: rule.badge,
+    productTitle: rule.productTitle,
+    priceText: rule.priceText || '19,900원',
+    ratingText: rule.ratingText || '★★★★★ (1,200+)',
+    isRocket: platformKey === 'coupang' ? rule.isRocket !== false : false,
+    imageUrl: rule.imageUrl,
+    url: buildPartnerAffiliateUrl(platformKey, rule.directLinkUrl, finalQuery)
+  };
+}
+
+// 단일 문항의 '출제자 정답(객관식 정답 선지 또는 주관식 정답 단어)'을 분석해 이미지 포함 맞춤 추천 상품 생성
+function getRecommendationForSingleQuestion(q, qIdx, isWrongAnswer, preferredGroup) {
+  const cfg = window.LOVE_EXAM_AD_CONFIG || {};
+  const allCatalog = cfg.answerKeywordCatalog || [];
+
+  const catalog = preferredGroup === 'coupang'
+    ? allCatalog.filter((c) => (c.platform || 'coupang') === 'coupang')
+    : preferredGroup === 'fashion_beauty'
+    ? allCatalog.filter((c) => (c.platform || 'coupang') !== 'coupang')
+    : allCatalog;
 
   const answerTextRaw =
     q.type === 'mc'
@@ -2122,22 +2291,19 @@ function getRecommendationForSingleQuestion(q, qIdx, isWrongAnswer) {
         ? `${answerTextRaw} ${matchedRule.searchQuery}`
         : matchedRule.searchQuery;
 
-    return {
-      qNumber: qIdx + 1,
-      isWrongAnswer: Boolean(isWrongAnswer),
-      answerLabel: shortAnswerLabel,
-      icon: '🎁',
-      badge: isWrongAnswer ? `${qIdx + 1}번 오답 만회템` : `${qIdx + 1}번 정답 취향템`,
-      productTitle: matchedRule.productTitle,
-      priceText: matchedRule.priceText || '19,900원',
-      ratingText: matchedRule.ratingText || '★★★★★ (1,200+)',
-      isRocket: matchedRule.isRocket !== false,
-      imageUrl: matchedRule.imageUrl,
-      url: buildCoupangAffiliateUrl(matchedRule.directLinkUrl, dynamicQuery)
-    };
+    return enrichCatalogRuleToRec(matchedRule, qIdx, isWrongAnswer, shortAnswerLabel, dynamicQuery);
   }
 
   const isSpicyQ = q.category === 'spicy';
+  const fallbackPlatform =
+    preferredGroup === 'fashion_beauty'
+      ? isSpicyQ
+        ? 'oliveyoung'
+        : qIdx % 2 === 0
+        ? 'musinsa'
+        : 'zigzag'
+      : 'coupang';
+  const meta = getPlatformMeta(fallbackPlatform);
   const fallbackQuery =
     q.type === 'subj'
       ? `${answerTextRaw} 선물 세트`
@@ -2147,32 +2313,42 @@ function getRecommendationForSingleQuestion(q, qIdx, isWrongAnswer) {
 
   return {
     qNumber: qIdx + 1,
+    platform: fallbackPlatform,
+    platformName: meta.name,
+    brandBadge: meta.brandBadge,
+    ctaLabel: meta.ctaLabel,
+    buyBtnText: meta.buyBtnText,
+    accentColor: meta.accentColor,
+    badgeBg: meta.badgeBg,
+    badgeColor: meta.badgeColor,
+    deliveryBadge: meta.defaultDeliveryBadge,
     isWrongAnswer: Boolean(isWrongAnswer),
     answerLabel: shortAnswerLabel,
     icon: isSpicyQ ? '🥂' : '🎁',
     badge: isWrongAnswer ? `${qIdx + 1}번 오답 만회템` : `${qIdx + 1}번 정답 맞춤템`,
-    productTitle: `[${shortAnswerLabel}] 베스트 추천 기프트 세트`,
+    originalBadge: `${meta.name} 추천`,
+    productTitle: `[${shortAnswerLabel}] ${meta.name} 베스트 추천 기프트`,
     priceText: isSpicyQ ? '24,900원' : '18,900원',
     ratingText: '★★★★★ (980+)',
-    isRocket: true,
+    isRocket: fallbackPlatform === 'coupang',
     imageUrl: isSpicyQ
       ? 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=400&q=80'
       : 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=400&q=80',
-    url: buildCoupangAffiliateUrl('', fallbackQuery)
+    url: buildPartnerAffiliateUrl(fallbackPlatform, '', fallbackQuery)
   };
 }
 
-// 현재 시험지의 전체 문항 정답에서 추천 상품 리스트 추출 (틀린 문항 우선 정렬)
-function extractRecommendationsFromExamAnswers() {
+// 현재 시험지의 전체 문항 정답에서 추천 상품 리스트 추출 (틀린 문항 우선 정렬, 그룹별 필터 지원)
+function extractRecommendationsFromExamAnswers(preferredGroup) {
   const cfg = window.LOVE_EXAM_AD_CONFIG || {};
-  const catalog = cfg.answerKeywordCatalog || [];
+  const allCatalog = cfg.answerKeywordCatalog || [];
   const qs = (state.examData && state.examData.questions) || [];
   const itemResults = (state.gradeResult && state.gradeResult.itemResults) || [];
   const recs = [];
 
   qs.forEach((q, idx) => {
     const isWrong = itemResults[idx] ? !itemResults[idx].isCorrect : false;
-    const rec = getRecommendationForSingleQuestion(q, idx, isWrong);
+    const rec = getRecommendationForSingleQuestion(q, idx, isWrong, preferredGroup);
     if (rec) recs.push(rec);
   });
 
@@ -2180,25 +2356,21 @@ function extractRecommendationsFromExamAnswers() {
     (state.view === 'home' && state.onboarding.subjectChoice !== 'basic') ||
     (state.view !== 'home' && hasSpicyQuestions());
 
-  catalog
-    .filter((c) => (isSpicy ? c.category === 'spicy' : c.category === 'basic'))
-    .forEach((c, idx) => {
-      if (recs.length < 4) {
-        recs.push({
-          qNumber: idx + 1,
-          isWrongAnswer: false,
-          answerLabel: c.badge,
-          icon: '🎁',
-          badge: c.badge,
-          productTitle: c.productTitle,
-          priceText: c.priceText,
-          ratingText: c.ratingText,
-          isRocket: c.isRocket !== false,
-          imageUrl: c.imageUrl,
-          url: buildCoupangAffiliateUrl(c.directLinkUrl, c.searchQuery)
-        });
-      }
-    });
+  const filteredCatalog = allCatalog.filter((c) => {
+    const catMatch = isSpicy ? c.category === 'spicy' : c.category === 'basic';
+    if (!catMatch) return false;
+    if (preferredGroup === 'coupang') return (c.platform || 'coupang') === 'coupang';
+    if (preferredGroup === 'fashion_beauty') return (c.platform || 'coupang') !== 'coupang';
+    return true;
+  });
+
+  filteredCatalog.forEach((c, idx) => {
+    if (recs.length < 6) {
+      const enriched = enrichCatalogRuleToRec(c, idx, false, c.badge, c.searchQuery);
+      enriched.badge = c.badge;
+      recs.push(enriched);
+    }
+  });
 
   recs.sort((a, b) => Number(b.isWrongAnswer) - Number(a.isWrongAnswer));
   return recs;
@@ -2217,10 +2389,10 @@ function buildCoupangImageBannerWidgetHtml(items, isSpicy, headerHintText) {
         <div class="cp-item-title">${escapeHtml(item.productTitle)}</div>
         <div class="cp-price-row">
           <span class="cp-price-text">${escapeHtml(item.priceText || '19,900원')}</span>
-          ${item.isRocket ? '<span class="cp-rocket-badge">🚀로켓배송</span>' : ''}
+          <span class="cp-rocket-badge">${escapeHtml(item.deliveryBadge || '🚀로켓배송')}</span>
         </div>
         <div class="cp-rating-row">${escapeHtml(item.ratingText || '★★★★★')}</div>
-        <div class="cp-buy-btn">쿠팡에서 구매하기</div>
+        <div class="cp-buy-btn">${escapeHtml(item.buyBtnText || '쿠팡에서 구매하기')}</div>
       </a>
     `
     )
@@ -2249,6 +2421,59 @@ function buildCoupangImageBannerWidgetHtml(items, isSpicy, headerHintText) {
   `;
 }
 
+// 1020 패션·뷰티·라이프스타일 파트너스 (무신사 / 지그재그 / 에이블리 / 올리브영 / 29CM) 전용 사이드바 위젯
+function buildFashionBeautyWidgetHtml(items, isSpicy, headerHintText) {
+  const cardsHtml = items
+    .slice(0, 2)
+    .map((item) => {
+      const meta = getPlatformMeta(item.platform);
+      return `
+        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener sponsored" class="cp-item-card fb-partner-card">
+          <div class="cp-thumb-box">
+            <img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.productTitle)}" loading="lazy" />
+            <span class="fb-platform-floating-pill" style="background:${escapeHtml(meta.accentColor)};">
+              ${escapeHtml(meta.brandBadge)}
+            </span>
+          </div>
+          <div class="cp-item-title">${escapeHtml(item.productTitle)}</div>
+          <div class="cp-price-row">
+            <span class="cp-price-text" style="color:#111;">${escapeHtml(item.priceText || '27,800원')}</span>
+            <span class="cp-rocket-badge" style="background:${escapeHtml(meta.badgeBg)}; color:${escapeHtml(meta.badgeColor)};">
+              ${escapeHtml(item.deliveryBadge || meta.defaultDeliveryBadge)}
+            </span>
+          </div>
+          <div class="cp-rating-row">${escapeHtml(item.ratingText || '★ 4.9')}</div>
+          <div class="cp-buy-btn" style="background:${escapeHtml(meta.accentColor)};">
+            ${escapeHtml(meta.buyBtnText)}
+          </div>
+        </a>
+      `;
+    })
+    .join('');
+
+  return `
+    <div class="coupang-widget-frame fb-widget-frame">
+      <div>
+        <div class="coupang-widget-header" style="background:#111; color:#fff; border-bottom-color:#222;">
+          <span class="cp-brand-logo" style="font-size:12px; color:#fff; letter-spacing:0.2px;">
+            ✨ 1020 STYLE PICK
+          </span>
+          <span class="cp-ad-tag" style="color:#ddd; border-color:#444;">AD · 제휴</span>
+        </div>
+        <div class="cp-answer-hint-banner ${isSpicy ? 'spicy' : ''}" style="background:${isSpicy ? '#9e1b32' : '#ff2f92'};">
+          ${escapeHtml(headerHintText)}
+        </div>
+        <div class="cp-items-stack">
+          ${cardsHtml}
+        </div>
+      </div>
+      <div class="coupang-widget-footer">
+        무신사·지그재그·올리브영·에이블리 등<br/>제휴 활동으로 수수료를 제공받을 수 있습니다.
+      </div>
+    </div>
+  `;
+}
+
 function buildOfficialCoupangIframeHtml(bannerId, trackingCode, subId) {
   const src = `https://ads-partners.coupang.com/widgets.html?id=${encodeURIComponent(
     bannerId
@@ -2262,10 +2487,74 @@ function buildOfficialCoupangIframeHtml(bannerId, trackingCode, subId) {
   `;
 }
 
+// 카카오 애드핏 슬롯 렌더링 (단위 ID가 있으면 실제 광고 호출, 없으면 프리뷰/파트너스 폴백)
+function renderKakaoAdFitSlot(containerEl, unitId, width, height, fallbackHtml) {
+  if (!containerEl) return;
+  const cleanUnit = (unitId || '').trim();
+  if (cleanUnit) {
+    ensureKakaoAdFitScript();
+    containerEl.innerHTML = `
+      <div style="display:flex; justify-content:center; align-items:center; min-height:${height}px;">
+        <ins class="kakao_ad_area" style="display:none;"
+          data-ad-unit="${escapeHtml(cleanUnit)}"
+          data-ad-width="${width}"
+          data-ad-height="${height}"></ins>
+      </div>
+    `;
+  } else if (fallbackHtml) {
+    containerEl.innerHTML = fallbackHtml;
+  }
+}
+
+// 구글 애드센스 슬롯 렌더링 (19+ 모드에서는 정책 보호를 위해 자동 파트너스/애드핏 폴백)
+function renderGoogleAdSenseSlot(containerEl, clientId, slotId, width, height, isSpicy, fallbackHtml) {
+  if (!containerEl) return;
+  const cleanClient = (clientId || '').trim();
+  const cleanSlot = (slotId || '').trim();
+  if (!isSpicy && cleanClient && cleanSlot) {
+    ensureGoogleAdSenseScript(cleanClient);
+    containerEl.innerHTML = `
+      <ins class="adsbygoogle"
+        style="display:inline-block;width:${width}px;height:${height}px"
+        data-ad-client="${escapeHtml(cleanClient)}"
+        data-ad-slot="${escapeHtml(cleanSlot)}"></ins>
+    `;
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {}
+  } else if (fallbackHtml) {
+    containerEl.innerHTML = fallbackHtml;
+  }
+}
+
+function buildMobileStripBannerHtml(rec, isSpicy) {
+  if (!rec) return '';
+  const meta = getPlatformMeta(rec.platform);
+  return `
+    <div style="display:flex; align-items:center; gap:10px;">
+      <img src="${escapeHtml(rec.imageUrl)}" alt="" style="width:42px; height:42px; object-fit:cover; border-radius:4px; border:1px solid #ddd; flex-shrink:0;" />
+      <div style="text-align:left;">
+        <div style="font-size:10px; font-weight:800; color:${escapeHtml(meta.accentColor)};">
+          [${escapeHtml(meta.brandBadge)}] ${escapeHtml(rec.deliveryBadge || meta.defaultDeliveryBadge)} · ${escapeHtml(rec.badge)}
+        </div>
+        <strong style="font-size:12.5px; color:#111; display:block; line-height:1.3;">
+          ${escapeHtml(rec.productTitle)} (${escapeHtml(rec.priceText)})
+        </strong>
+      </div>
+    </div>
+    <a href="${escapeHtml(rec.url)}" target="_blank" rel="noopener sponsored"
+       style="background:${escapeHtml(meta.accentColor)}; color:#fff; font-size:11.5px; font-weight:800; padding:6px 10px; border-radius:4px; text-decoration:none; white-space:nowrap;">
+      ${escapeHtml(meta.name)} 보기
+    </a>
+  `;
+}
+
 function renderSmartAds() {
   const cfg = window.LOVE_EXAM_AD_CONFIG || {};
+  const alloc = cfg.slotAllocation || {};
   const bw = cfg.coupangBannerWidget || {};
   const adsense = cfg.googleAdSense || {};
+  const adfit = cfg.kakaoAdFit || {};
 
   const isSpicy =
     (state.view === 'home' && state.onboarding.subjectChoice !== 'basic') ||
@@ -2274,99 +2563,150 @@ function renderSmartAds() {
   const leftEl = document.getElementById('adLeftSidebar');
   const rightEl = document.getElementById('adRightSidebar');
   const mobileTopEl = document.getElementById('adMobileTopSlot');
+  const mobileBottomEl = document.getElementById('adMobileBottomSlot');
 
-  if (!isSpicy && adsense.enabled && adsense.clientId) {
-    ensureGoogleAdSenseScript(adsense.clientId);
-    if (leftEl && adsense.leftSlotId) {
-      leftEl.innerHTML = `<ins class="adsbygoogle" style="display:inline-block;width:160px;height:600px" data-ad-client="${escapeHtml(adsense.clientId)}" data-ad-slot="${escapeHtml(adsense.leftSlotId)}"></ins>`;
-      try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    }
-    if (rightEl && adsense.rightSlotId) {
-      rightEl.innerHTML = `<ins class="adsbygoogle" style="display:inline-block;width:160px;height:600px" data-ad-client="${escapeHtml(adsense.clientId)}" data-ad-slot="${escapeHtml(adsense.rightSlotId)}"></ins>`;
-      try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    }
-    if (mobileTopEl && adsense.mobileTopSlotId) {
-      mobileTopEl.innerHTML = `<ins class="adsbygoogle" style="display:inline-block;width:320px;height:100px" data-ad-client="${escapeHtml(adsense.clientId)}" data-ad-slot="${escapeHtml(adsense.mobileTopSlotId)}"></ins>`;
-      try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    }
-    return;
-  }
+  const coupangRecs = extractRecommendationsFromExamAnswers('coupang');
+  const fbRecs = extractRecommendationsFromExamAnswers('fashion_beauty');
+  const allRecs = extractRecommendationsFromExamAnswers();
 
-  const activeLeftBannerId = isSpicy ? bw.spicyLeftBannerId || bw.leftBannerId : bw.leftBannerId;
-  const activeRightBannerId = isSpicy ? bw.spicyRightBannerId || bw.rightBannerId : bw.rightBannerId;
-
-  const recs = extractRecommendationsFromExamAnswers();
   const creatorDisplay =
     state.view === 'home'
       ? state.onboarding.creatorName || '커플'
       : (state.examData && state.examData.creatorName) || '출제자';
 
+  const activeLeftBannerId = isSpicy ? bw.spicyLeftBannerId || bw.leftBannerId : bw.leftBannerId;
+  const activeRightBannerId = isSpicy ? bw.spicyRightBannerId || bw.rightBannerId : bw.rightBannerId;
+
+  // 좌측 사이드바 렌더링
   if (leftEl) {
-    if (bw.rawLeftIframeHtml && bw.rawLeftIframeHtml.trim()) {
-      leftEl.innerHTML = bw.rawLeftIframeHtml;
-    } else if (activeLeftBannerId && activeLeftBannerId.trim()) {
-      leftEl.innerHTML = buildOfficialCoupangIframeHtml(
-        activeLeftBannerId.trim(),
-        bw.trackingCode,
-        bw.subId
+    const leftMode = alloc.leftSidebar || (adsense.enabled ? 'adsense' : adfit.enabled ? 'adfit' : 'coupang');
+    const hintLeft =
+      state.view === 'home'
+        ? '🎯 커플 베스트 추천 기프트'
+        : `🎯 ${creatorDisplay}님 답안 맞춤 추천`;
+    const coupangFallbackHtml =
+      bw.rawLeftIframeHtml && bw.rawLeftIframeHtml.trim()
+        ? bw.rawLeftIframeHtml
+        : activeLeftBannerId && activeLeftBannerId.trim()
+        ? buildOfficialCoupangIframeHtml(activeLeftBannerId.trim(), bw.trackingCode, bw.subId)
+        : buildCoupangImageBannerWidgetHtml(
+            (coupangRecs.length ? coupangRecs : allRecs).slice(0, 2),
+            isSpicy,
+            hintLeft
+          );
+
+    if (leftMode === 'adsense') {
+      renderGoogleAdSenseSlot(leftEl, adsense.clientId, adsense.leftSlotId, 160, 600, isSpicy, coupangFallbackHtml);
+    } else if (leftMode === 'adfit') {
+      renderKakaoAdFitSlot(leftEl, adfit.leftUnitId, 160, 600, coupangFallbackHtml);
+    } else if (leftMode === 'fashion_beauty') {
+      leftEl.innerHTML = buildFashionBeautyWidgetHtml(
+        (fbRecs.length ? fbRecs : allRecs).slice(0, 2),
+        isSpicy,
+        hintLeft
       );
     } else {
-      const leftItems = recs.slice(0, 2);
-      const hintLeft =
-        state.view === 'home'
-          ? '🎯 커플 베스트 추천 기프트'
-          : `🎯 ${creatorDisplay}님 답안 맞춤 추천`;
-      leftEl.innerHTML = buildCoupangImageBannerWidgetHtml(leftItems, isSpicy, hintLeft);
+      leftEl.innerHTML = coupangFallbackHtml;
     }
   }
 
+  // 우측 사이드바 렌더링
   if (rightEl) {
-    if (bw.rawRightIframeHtml && bw.rawRightIframeHtml.trim()) {
-      rightEl.innerHTML = bw.rawRightIframeHtml;
-    } else if (activeRightBannerId && activeRightBannerId.trim()) {
-      rightEl.innerHTML = buildOfficialCoupangIframeHtml(
-        activeRightBannerId.trim(),
-        bw.trackingCode,
-        bw.subId
-      );
+    const rightMode = alloc.rightSidebar || (adsense.enabled ? 'adsense' : adfit.enabled ? 'adfit' : 'fashion_beauty');
+    const fbItems = fbRecs.length >= 2 ? fbRecs.slice(0, 2) : allRecs.slice(0, 2).reverse();
+    const cpRightItems = coupangRecs.slice(2, 4).length >= 2 ? coupangRecs.slice(2, 4) : coupangRecs.slice(0, 2).reverse();
+    const hintRight =
+      state.view === 'home'
+        ? '👗 무신사·지그재그·올영 픽'
+        : `💡 정답 힌트: "${(fbItems[0] && fbItems[0].answerLabel) || '인기 코디'}"`;
+
+    const fbFallbackHtml = buildFashionBeautyWidgetHtml(fbItems, isSpicy, hintRight);
+    const cpRightFallbackHtml =
+      bw.rawRightIframeHtml && bw.rawRightIframeHtml.trim()
+        ? bw.rawRightIframeHtml
+        : activeRightBannerId && activeRightBannerId.trim()
+        ? buildOfficialCoupangIframeHtml(activeRightBannerId.trim(), bw.trackingCode, bw.subId)
+        : buildCoupangImageBannerWidgetHtml(cpRightItems, isSpicy, hintRight);
+
+    if (rightMode === 'adsense') {
+      renderGoogleAdSenseSlot(rightEl, adsense.clientId, adsense.rightSlotId, 160, 600, isSpicy, fbFallbackHtml);
+    } else if (rightMode === 'adfit') {
+      renderKakaoAdFitSlot(rightEl, adfit.rightUnitId, 160, 600, fbFallbackHtml);
+    } else if (rightMode === 'coupang') {
+      rightEl.innerHTML = cpRightFallbackHtml;
     } else {
-      const rightItems = recs.slice(2, 4).length >= 2 ? recs.slice(2, 4) : recs.slice(0, 2).reverse();
-      const hintRight =
-        state.view === 'home'
-          ? '🚀 로켓선물 인기 특가'
-          : `💡 정답 힌트: "${(rightItems[0] && rightItems[0].answerLabel) || '인기템'}"`;
-      rightEl.innerHTML = buildCoupangImageBannerWidgetHtml(rightItems, isSpicy, hintRight);
+      rightEl.innerHTML = fbFallbackHtml;
     }
   }
 
-  if (mobileTopEl && recs[0]) {
-    const r0 = recs[0];
+  // 모바일 상단 배너 렌더링
+  if (mobileTopEl) {
+    const topMode = alloc.mobileTop || 'coupang';
+    const topRec = topMode === 'fashion_beauty' ? fbRecs[0] || allRecs[0] : coupangRecs[0] || allRecs[0];
     mobileTopEl.style.borderColor = isSpicy ? '#9e1b32' : '#d4d7dc';
     mobileTopEl.style.background = '#ffffff';
     mobileTopEl.style.color = '#111';
-    mobileTopEl.innerHTML = `
-      <div style="display:flex; align-items:center; gap:10px;">
-        <img src="${escapeHtml(r0.imageUrl)}" alt="" style="width:42px; height:42px; object-fit:cover; border-radius:4px; border:1px solid #ddd;" />
-        <div>
-          <div style="font-size:10px; font-weight:800; color:#0073e9;">🚀 쿠팡 로켓배송 · ${escapeHtml(r0.badge)}</div>
-          <strong style="font-size:12.5px; color:#111;">${escapeHtml(r0.productTitle)} (${escapeHtml(r0.priceText)})</strong>
-        </div>
-      </div>
-      <a href="${escapeHtml(r0.url)}" target="_blank" rel="noopener sponsored"
-         style="background:#346aff; color:#fff; font-size:11.5px; font-weight:800; padding:6px 10px; border-radius:4px; text-decoration:none; white-space:nowrap;">
-        구매하기
-      </a>
-    `;
+    const stripFallback = buildMobileStripBannerHtml(topRec, isSpicy);
+
+    if (topMode === 'adsense') {
+      renderGoogleAdSenseSlot(mobileTopEl, adsense.clientId, adsense.mobileTopSlotId, 320, 100, isSpicy, stripFallback);
+    } else if (topMode === 'adfit') {
+      renderKakaoAdFitSlot(mobileTopEl, adfit.mobileTopUnitId, 320, adfit.mobileBannerHeight || 100, stripFallback);
+    } else {
+      mobileTopEl.innerHTML = stripFallback;
+    }
+  }
+
+  // 모바일 하단 배너 렌더링
+  if (mobileBottomEl) {
+    const bottomMode = alloc.mobileBottom || 'fashion_beauty';
+    const bottomRec =
+      bottomMode === 'fashion_beauty'
+        ? fbRecs[0] || fbRecs[1] || allRecs[1] || allRecs[0]
+        : coupangRecs[1] || coupangRecs[0] || allRecs[0];
+    mobileBottomEl.style.borderColor = isSpicy ? '#9e1b32' : '#d4d7dc';
+    mobileBottomEl.style.background = '#ffffff';
+    mobileBottomEl.style.color = '#111';
+    const stripFallback = buildMobileStripBannerHtml(bottomRec, isSpicy);
+
+    if (bottomMode === 'adsense') {
+      renderGoogleAdSenseSlot(mobileBottomEl, adsense.clientId, adsense.mobileBottomSlotId, 320, 100, isSpicy, stripFallback);
+    } else if (bottomMode === 'adfit') {
+      renderKakaoAdFitSlot(mobileBottomEl, adfit.mobileBottomUnitId, 320, adfit.mobileBannerHeight || 100, stripFallback);
+    } else {
+      mobileBottomEl.innerHTML = stripFallback;
+    }
   }
 }
 
 function renderResultNativeAd(isSpicy, gradeRank) {
-  const recs = extractRecommendationsFromExamAnswers().slice(0, 3);
+  const cfg = window.LOVE_EXAM_AD_CONFIG || {};
+  const alloc = cfg.slotAllocation || {};
+  const adsense = cfg.googleAdSense || {};
+  const adfit = cfg.kakaoAdFit || {};
+
+  // 쿠팡 + 1020 패션/뷰티 파트너스 추천이 골고루 노출되도록 조합
+  const allRecs = extractRecommendationsFromExamAnswers();
+  const cpRecs = extractRecommendationsFromExamAnswers('coupang');
+  const fbRecs = extractRecommendationsFromExamAnswers('fashion_beauty');
+
+  const mixedRecs = [];
+  if (allRecs[0]) mixedRecs.push(allRecs[0]);
+  const secondCandidate = fbRecs.find((r) => !mixedRecs.some((m) => m.productTitle === r.productTitle)) || allRecs[1];
+  if (secondCandidate) mixedRecs.push(secondCandidate);
+  const thirdCandidate =
+    cpRecs.find((r) => !mixedRecs.some((m) => m.productTitle === r.productTitle)) ||
+    fbRecs.find((r) => !mixedRecs.some((m) => m.productTitle === r.productTitle)) ||
+    allRecs[2];
+  if (thirdCandidate) mixedRecs.push(thirdCandidate);
+
   const creatorDisplay = (state.examData && state.examData.creatorName) || '출제자';
 
-  const cardsHtml = recs
-    .map(
-      (r) => `
+  const cardsHtml = mixedRecs
+    .slice(0, 3)
+    .map((r) => {
+      const meta = getPlatformMeta(r.platform);
+      return `
       <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener sponsored"
          style="display:flex; justify-content:space-between; align-items:center; gap:12px; background:#fff; border:1px solid ${
            isSpicy ? '#d9a3ad' : '#d4d7dc'
@@ -2374,28 +2714,62 @@ function renderResultNativeAd(isSpicy, gradeRank) {
         <div style="display:flex; align-items:center; gap:12px; text-align:left;">
           <img src="${escapeHtml(r.imageUrl)}" alt="" style="width:58px; height:58px; object-fit:cover; border-radius:4px; border:1px solid #eee; flex-shrink:0;" />
           <div>
-            <span style="font-size:11px; font-weight:800; color:${r.isWrongAnswer ? '#d9251d' : '#15803d'};">
-              ${r.isWrongAnswer ? `❌ ${r.qNumber}번 오답 만회 선물` : `⭕ ${r.qNumber}번 정답 취향 저격`} (${escapeHtml(
+            <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+              <span style="background:${escapeHtml(meta.badgeBg)}; color:${escapeHtml(meta.badgeColor)}; font-size:10px; font-weight:900; padding:1px 6px; border-radius:2px;">
+                ${escapeHtml(meta.brandBadge)}
+              </span>
+              <span style="font-size:11px; font-weight:800; color:${r.isWrongAnswer ? '#d9251d' : '#15803d'};">
+                ${r.isWrongAnswer ? `❌ ${r.qNumber}번 오답 만회 선물` : `⭕ ${r.qNumber}번 정답 취향 저격`} (${escapeHtml(
         r.answerLabel
       )})
-            </span>
+              </span>
+            </div>
             <div style="font-size:13.5px; font-weight:800; color:#111; margin-top:2px;">
               ${escapeHtml(r.productTitle)}
             </div>
             <div style="font-size:12px; margin-top:2px;">
               <strong style="color:#cb1400;">${escapeHtml(r.priceText || '19,900원')}</strong>
-              ${r.isRocket ? '<span style="color:#0073e9; font-weight:800; font-size:11px; margin-left:6px;">🚀로켓배송</span>' : ''}
+              <span style="color:${escapeHtml(meta.badgeColor)}; font-weight:800; font-size:11px; margin-left:6px;">
+                ${escapeHtml(r.deliveryBadge || meta.defaultDeliveryBadge)}
+              </span>
               <span style="color:#f59e0b; font-size:11px; margin-left:6px;">${escapeHtml(r.ratingText || '★★★★★')}</span>
             </div>
           </div>
         </div>
-        <span style="background:#346aff; color:#fff; font-size:12px; font-weight:800; padding:8px 14px; border-radius:4px; white-space:nowrap;">
-          쿠팡 구매하기 →
+        <span style="background:${escapeHtml(meta.accentColor)}; color:#fff; font-size:12px; font-weight:800; padding:8px 14px; border-radius:4px; white-space:nowrap;">
+          ${escapeHtml(meta.ctaLabel)}
         </span>
       </a>
-    `
-    )
+    `;
+    })
     .join('');
+
+  let extraCpcHtml = '';
+  if (alloc.resultAppendCpcBanner) {
+    if (adfit.enabled && (adfit.resultUnitId || '').trim()) {
+      ensureKakaoAdFitScript();
+      extraCpcHtml = `
+        <div style="margin-top:10px; display:flex; justify-content:center;">
+          <ins class="kakao_ad_area" style="display:none;"
+            data-ad-unit="${escapeHtml(adfit.resultUnitId.trim())}"
+            data-ad-width="320"
+            data-ad-height="100"></ins>
+        </div>
+      `;
+    } else if (!isSpicy && adsense.enabled && (adsense.clientId || '').trim() && (adsense.resultInfeedSlotId || '').trim()) {
+      ensureGoogleAdSenseScript(adsense.clientId.trim());
+      extraCpcHtml = `
+        <div style="margin-top:10px; display:flex; justify-content:center;">
+          <ins class="adsbygoogle"
+            style="display:block; width:100%; min-height:90px;"
+            data-ad-client="${escapeHtml(adsense.clientId.trim())}"
+            data-ad-slot="${escapeHtml(adsense.resultInfeedSlotId.trim())}"
+            data-ad-format="auto"
+            data-full-width-responsive="true"></ins>
+        </div>
+      `;
+    }
+  }
 
   return `
     <div class="result-native-ad-box ${isSpicy ? 'spicy' : ''}" style="flex-direction:column; align-items:stretch;">
@@ -2403,9 +2777,10 @@ function renderResultNativeAd(isSpicy, gradeRank) {
         <div style="font-size:14px; font-weight:900; color:${isSpicy ? '#7f1d1d' : '#1a1a1a'};">
           🎁 [${escapeHtml(creatorDisplay)}님의 실제 시험 정답 기반] 취향 저격 선물 & 데이트 추천
         </div>
-        <span style="font-size:10.5px; color:#777;">쿠팡 파트너스 활동의 일환으로 일정액의 수수료를 제공받을 수 있습니다</span>
+        <span style="font-size:10.5px; color:#777;">쿠팡·무신사·지그재그·올리브영 등 파트너스 활동으로 수수료를 제공받을 수 있습니다</span>
       </div>
       ${cardsHtml}
+      ${extraCpcHtml}
     </div>
   `;
 }

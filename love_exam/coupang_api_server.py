@@ -98,6 +98,18 @@ class LoveExamRequestHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = 8080
-    print(f"Love Exam + Coupang Open API Server running at http://localhost:{port}")
-    HTTPServer(("0.0.0.0", port), LoveExamRequestHandler).serve_forever()
+    preferred_ports = [int(os.environ.get("PORT", "8090")), 8090, 8088, 8080]
+    httpd = None
+    bound_port = None
+    for p in preferred_ports:
+        try:
+            httpd = HTTPServer(("0.0.0.0", p), LoveExamRequestHandler)
+            bound_port = p
+            break
+        except OSError:
+            continue
+    if httpd is None:
+        httpd = HTTPServer(("0.0.0.0", 0), LoveExamRequestHandler)
+        bound_port = httpd.server_port
+    print(f"Love Exam + Coupang Open API Server running at http://localhost:{bound_port}", flush=True)
+    httpd.serve_forever()
