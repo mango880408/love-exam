@@ -2955,8 +2955,178 @@ function renderApp() {
   }
 }
 
+// =========================================================
+// [기능 4] 링크된 실제 제품의 공식 대표 이미지(og:image) 자동 추출기
+// =========================================================
+const PRODUCT_OG_CACHE_KEY = 'love_exam_product_og_cache_v1';
+
+async function autoResolveRealProductImages() {
+  const cfg = window.LOVE_EXAM_AD_CONFIG || {};
+  const catalog = cfg.answerKeywordCatalog || [];
+  if (!catalog.length) return;
+
+  let cache = {};
+  try {
+    cache = JSON.parse(localStorage.getItem(PRODUCT_OG_CACHE_KEY) || '{}') || {};
+  } catch (e) {
+    cache = {};
+  }
+
+  let updated = false;
+  for (let i = 0; i < catalog.length; i++) {
+    const item = catalog[i];
+    const targetUrl = (item.productPageUrl || item.directLinkUrl || '').trim();
+    if (!targetUrl) continue;
+
+    // 이미 캐시에 실제 제품 이미지가 있으면 즉시 반영
+    if (cache[targetUrl] && cache[targetUrl].imageUrl) {
+      if (item.imageUrl !== cache[targetUrl].imageUrl) {
+        item.imageUrl = cache[targetUrl].imageUrl;
+        updated = true;
+      }
+      continue;
+    }
+
+    // autoFetchProductImage 가 false 가 아니면 실제 상품 페이지에서 og:image 자동 추출
+    if (item.autoFetchProductImage !== false) {
+      try {
+        const resp = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(targetUrl)}`);
+        if (resp.ok) {
+          const json = await resp.json();
+          const ogImg = json && json.data && json.data.image && json.data.image.url;
+          if (ogImg) {
+            item.imageUrl = ogImg;
+            cache[targetUrl] = { imageUrl: ogImg, fetchedAt: Date.now() };
+            updated = true;
+          }
+        }
+      } catch (e) {
+        // 네트워크 제한 시 기존 이미지 유지
+      }
+    }
+  }
+
+  if (updated) {
+    try {
+      localStorage.setItem(PRODUCT_OG_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) {}
+    renderSmartAds();
+  }
+}
+
+// =========================================================
+// [기능 5] 이용약관 및 개인정보 처리방침 모달 뷰어
+// =========================================================
+function openLegalModal(docType) {
+  const modalRoot = document.getElementById('legalModalRoot');
+  if (!modalRoot) return;
+
+  const isPrivacy = docType === 'privacy';
+  const title = isPrivacy ? '🔒 개인정보 처리방침' : '📜 서비스 이용약관';
+
+  const bodyHtml = isPrivacy
+    ? `
+      <div class="legal-doc-body">
+        <p><strong>팩킨(이하 "회사")</strong>은 「개인정보 보호법」 등 관련 법령을 준수하며, 『연애능력평가 - 여친/남친·썸남/썸녀 고사』(이하 "서비스")를 이용하는 이용자의 개인정보 및 권익을 보호하기 위하여 다음과 같이 개인정보 처리방침을 수립·공개합니다.</p>
+
+        <h3>제1조 (개인정보의 처리 목적 및 수집 항목)</h3>
+        <p>본 서비스는 별도의 회원가입 절차 없이 이용 가능한 <strong>무로그인·서버리스(Serverless) 웹 서비스</strong>로, 회사는 이용자의 개인정보를 별도 데이터베이스(DB) 서버에 저장하지 않습니다.</p>
+        <ul>
+          <li><strong>출제 및 응시 데이터:</strong> 이용자가 입력한 이름(또는 닉네임), 출제 문항, 선택한 답안 정보는 공유 URL 파라미터(인코딩 문자열) 및 이용자 본인의 브라우저 저장소(<code>localStorage</code>)에만 저장·처리됩니다.</li>
+          <li><strong>자동 수집 항목 (광고 및 통계):</strong> 서비스 이용 과정에서 쿠키(Cookie), 방문 일시, 브라우저 종류 및 OS 정보 등이 제휴 광고 플랫폼(구글 애드센스, 카카오 애드핏, 쿠팡 파트너스 등)을 통해 비식별 형태로 생성·수집될 수 있습니다.</li>
+        </ul>
+
+        <h3>제2조 (개인정보의 보유 및 이용기간)</h3>
+        <p>회사는 이용자의 개인정보를 서버에 저장하지 않으므로 별도의 보유기간이 존재하지 않습니다. 이용자 기기(브라우저)에 저장된 임시 출제/응시 기록은 이용자가 브라우저 캐시 및 사이트 데이터를 삭제할 경우 즉시 파기됩니다.</p>
+
+        <h3>제3조 (제3자 제공 및 제휴 마케팅·맞춤형 광고 안내)</h3>
+        <p>회사는 이용자의 개인정보를 외부에 판매하거나 임의로 제공하지 않습니다. 다만, 무료 서비스 운영을 위해 아래와 같은 광고·제휴 파트너스 프로그램이 연동되어 있습니다.</p>
+        <ul>
+          <li><strong>제휴 마케팅(CPS):</strong> 쿠팡 파트너스, 무신사 큐레이터, 지그재그, 에이블리, 올리브영 어필리에이트, 29CM 등 외부 쇼핑몰 이동 시 제휴 트래킹 파라미터가 포함될 수 있으며, 이에 따른 일정액의 수수료를 제공받을 수 있습니다.</li>
+          <li><strong>온라인 맞춤형 광고(CPC):</strong> Google AdSense, Kakao AdFit 등 광고 사업자가 브라우저 쿠키(Cookie)를 통해 이용자에게 맞춤형 광고를 제공할 수 있습니다. 이용자는 브라우저 설정에서 쿠키 저장을 거부할 수 있습니다.</li>
+        </ul>
+
+        <h3>제4조 (이용자의 권리와 행사 방법)</h3>
+        <p>이용자는 언제든지 자신의 브라우저 설정(인터넷 사용 기록 삭제)을 통해 로컬 데이터를 직접 삭제하거나 쿠키 수집을 차단할 수 있습니다.</p>
+
+        <h3>제5조 (개인정보 보호책임자 및 고객문의)</h3>
+        <p>서비스 이용 중 개인정보 보호 관련 문의사항이나 불만 처리가 필요하신 경우 아래 연락처로 문의해 주시면 신속히 답변드리겠습니다.</p>
+        <ul>
+          <li><strong>상호명:</strong> 팩킨</li>
+          <li><strong>개인정보 보호책임자(대표자):</strong> 김슬기</li>
+          <li><strong>사업자등록번호:</strong> 871-17-00114</li>
+          <li><strong>통신판매업 신고번호:</strong> 2015-고양일산동-1321 호</li>
+          <li><strong>소재지:</strong> 경기도 고양시 일산동구 무궁화로 18, 남정 씨티프라자 1 603-124호</li>
+          <li><strong>이메일 / 연락처:</strong> auctionhint@gmail.com / 010-2600-6848</li>
+        </ul>
+        <p style="margin-top:12px; font-size:12px; color:#666;">시행일자: 2026년 1월 1일</p>
+      </div>
+    `
+    : `
+      <div class="legal-doc-body">
+        <p>본 약관은 <strong>팩킨(이하 "회사")</strong>이 제공하는 『연애능력평가 - 여친/남친·썸남/썸녀 고사』(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.</p>
+
+        <h3>제1조 (목적 및 서비스의 성격)</h3>
+        <p>본 서비스는 연인, 썸 상대 또는 친구 간에 자신에 관한 퀴즈(시험지)를 직접 출제하고 공유 링크를 통해 풀어보며 점수를 확인하는 무료 엔터테인먼트 웹 서비스입니다.</p>
+
+        <h3>제2조 (이용자의 의무 및 게시물·링크 관리 책임)</h3>
+        <ul>
+          <li>이용자는 타인의 명예를 훼손하거나 불법 정보, 타인의 개인정보(실명, 연락처 등 민감정보)가 포함된 문제를 무단으로 출제·유포해서는 안 됩니다.</li>
+          <li>출제 링크(URL)는 링크를 보유한 사람이라면 누구나 열람할 수 있으므로, 이용자는 본인이 생성한 시험지 및 채점 결과 링크를 신뢰할 수 있는 상대방에게만 공유해야 하며, 링크 관리 소홀로 발생한 문제에 대해 회사는 책임을 지지 않습니다.</li>
+          <li><strong>심화 선택과목(19+ 성적취향 탐구영역) 이용 안내:</strong> 해당 과목은 성인 연인 간의 합의된 사적 재미를 위한 선택 기능으로, 청소년에게 부적절한 링크를 유포하거나 상대방의 의사에 반하여 강요하는 행위를 엄격히 금지합니다.</li>
+        </ul>
+
+        <h3>제3조 (제휴 광고 및 외부 쇼핑몰 연결에 관한 면책)</h3>
+        <ul>
+          <li>서비스 내 배너 및 결과 페이지에는 쿠팡 파트너스, 무신사, 지그재그, 에이블리, 올리브영, 29CM 등 제3자 쇼핑몰로 연결되는 광고 및 추천 상품 링크가 포함될 수 있습니다.</li>
+          <li>이용자가 외부 쇼핑몰로 이동하여 상품을 구매하는 경우, 상품의 주문·결제·배송·환불 등에 관한 모든 책임은 해당 쇼핑몰(판매자)에게 있으며 회사는 이에 관여하지 않습니다.</li>
+        </ul>
+
+        <h3>제4조 (저작권 및 지적재산권)</h3>
+        <p>서비스의 UI 디자인, 로고, 소프트웨어 코드 및 기본 제공 문항 템플릿에 대한 저작권은 회사에 귀속됩니다. 회사의 사전 동의 없이 상업적 목적으로 이를 무단 복제·재배포하는 행위를 금합니다.</p>
+
+        <h3>제5조 (서비스 변경 및 중단)</h3>
+        <p>회사는 운영상·기술상의 필요에 따라 무료로 제공되는 본 서비스의 전부 또는 일부를 수정·중단할 수 있으며, 무료 서비스 이용과 관련하여 관련 법령에 특별한 규정이 없는 한 별도의 배상 책임을 지지 않습니다.</p>
+
+        <h3>제6조 (사업자 정보 및 분쟁 해결)</h3>
+        <ul>
+          <li><strong>상호명:</strong> 팩킨 (대표자: 김슬기)</li>
+          <li><strong>사업자등록번호:</strong> 871-17-00114 | <strong>통신판매업 신고번호:</strong> 2015-고양일산동-1321 호</li>
+          <li><strong>주소:</strong> 경기도 고양시 일산동구 무궁화로 18, 남정 씨티프라자 1 603-124호</li>
+          <li><strong>문의:</strong> auctionhint@gmail.com / 010-2600-6848</li>
+        </ul>
+        <p style="margin-top:12px; font-size:12px; color:#666;">시행일자: 2026년 1월 1일</p>
+      </div>
+    `;
+
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeLegalModal()">
+      <div class="modal-paper-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #222; padding-bottom:10px; margin-bottom:14px;">
+          <h2 style="font-size:18px; font-weight:900; color:#111;">${title}</h2>
+          <button type="button" class="delete-q-btn" style="font-size:13px; padding:4px 10px;" onclick="closeLegalModal()">닫기 ✕</button>
+        </div>
+        ${bodyHtml}
+        <div style="margin-top:18px; padding-top:12px; border-top:1px solid #ccc; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="paper-btn sm ${!isPrivacy ? 'primary' : ''}" onclick="openLegalModal('terms')">이용약관 보기</button>
+            <button type="button" class="paper-btn sm ${isPrivacy ? 'primary' : ''}" onclick="openLegalModal('privacy')">개인정보 처리방침 보기</button>
+          </div>
+          <button type="button" class="paper-btn sm dark" onclick="closeLegalModal()">확인 및 닫기</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeLegalModal() {
+  const modalRoot = document.getElementById('legalModalRoot');
+  if (modalRoot) modalRoot.innerHTML = '';
+}
+
 // 초기 실행 (URL 파라미터에 ?exam=... 또는 &result=... 가 있으면 즉시 응시/검수 모드로 진입)
 window.addEventListener('DOMContentLoaded', () => {
+  autoResolveRealProductImages();
   const params = new URLSearchParams(window.location.search);
   const examParam = params.get('exam');
   const resultParam = params.get('result');

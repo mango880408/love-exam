@@ -60,6 +60,44 @@
   <!-- 모바일 환경용 하단 배너 광고 슬롯 -->
   <div class="ad-mobile-banner" id="adMobileBottomSlot" style="margin: 16px auto 0;"></div>
 
+  <!-- 사업자 정보 및 약관/개인정보처리방침 공식 푸터 -->
+  <footer class="site-legal-footer" role="contentinfo">
+    <div class="site-legal-footer-inner">
+      <div class="footer-policy-links">
+        <button type="button" class="footer-policy-btn" onclick="openLegalModal('terms')">이용약관</button>
+        <span class="footer-divider">|</span>
+        <button type="button" class="footer-policy-btn strong" onclick="openLegalModal('privacy')">개인정보 처리방침</button>
+        <span class="footer-divider">|</span>
+        <a href="mailto:auctionhint@gmail.com" class="footer-policy-btn">제휴·광고 및 고객문의</a>
+      </div>
+
+      <div class="footer-biz-info">
+        <div>
+          <strong>상호명:</strong> 팩킨
+          <span class="footer-divider">|</span>
+          <strong>대표자명:</strong> 김슬기
+          <span class="footer-divider">|</span>
+          <strong>사업자등록번호:</strong> 871-17-00114
+          <span class="footer-divider">|</span>
+          <strong>통신판매업 신고번호:</strong> 2015-고양일산동-1321 호
+        </div>
+        <div>
+          <strong>주소:</strong> 경기도 고양시 일산동구 무궁화로 18, 남정 씨티프라자 1 603-124호
+        </div>
+        <div>
+          <strong>문의:</strong> <a href="mailto:auctionhint@gmail.com">auctionhint@gmail.com</a> / <a href="tel:010-2600-6848">010-2600-6848</a>
+        </div>
+      </div>
+
+      <div class="footer-copyright">
+        © 2026 팩킨 (PACKIN). All rights reserved. 본 서비스의 일부 상품 링크는 쿠팡 파트너스 및 제휴 마케팅 활동의 일환으로 일정액의 수수료를 제공받을 수 있습니다.
+      </div>
+    </div>
+  </footer>
+
+  <!-- 이용약관 / 개인정보 처리방침 모달 컨테이너 -->
+  <div id="legalModalRoot"></div>
+
   <!-- 토스트 메시지 -->
   <div id="toastMsg" class="toast-msg"></div>
 
